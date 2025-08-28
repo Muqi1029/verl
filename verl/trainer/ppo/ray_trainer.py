@@ -334,9 +334,12 @@ class RayPPOTrainer:
 
         self.role_worker_mapping = role_worker_mapping
         self.resource_pool_manager = resource_pool_manager
-        self.use_reference_policy = need_reference_policy(self.role_worker_mapping)
-        self.use_rm = need_reward_model(self.role_worker_mapping)
-        self.use_critic = need_critic(self.config)
+
+        self.use_reference_policy = need_reference_policy(self.role_worker_mapping)  # NO
+        self.use_rm = need_reward_model(self.role_worker_mapping) # NO
+
+        self.use_critic = need_critic(self.config) # YES
+
         self.ray_worker_group_cls = ray_worker_group_cls
         self.device_name = device_name if device_name else self.config.trainer.device
         self.validation_generations_logger = ValidationGenerationsLogger(
@@ -348,11 +351,12 @@ class RayPPOTrainer:
         self.ref_in_actor = config.actor_rollout_ref.model.get("lora_rank", 0) > 0
 
         # define in-reward KL control
-        # kl loss control currently not suppoorted
-        if self.config.algorithm.use_kl_in_reward:
+        # kl loss control currently not supported
+        if self.config.algorithm.use_kl_in_reward: # NO
             self.kl_ctrl_in_reward = core_algos.get_kl_controller(self.config.algorithm.kl_ctrl)
 
         self._create_dataloader(train_dataset, val_dataset, collate_fn, train_sampler)
+
 
     def _create_dataloader(self, train_dataset, val_dataset, collate_fn, train_sampler: Optional[Sampler]):
         """
@@ -408,17 +412,20 @@ class RayPPOTrainer:
         print(
             f"Size of train dataloader: {len(self.train_dataloader)}, Size of val dataloader: "
             f"{len(self.val_dataloader)}"
-        )
+        ) # Size of train dataloader: 385, Size of val dataloader: 1
 
-        total_training_steps = len(self.train_dataloader) * self.config.trainer.total_epochs
+        total_training_steps = len(self.train_dataloader) * self.config.trainer.total_epochs # 30
 
         if self.config.trainer.total_training_steps is not None:
             total_training_steps = self.config.trainer.total_training_steps
 
         self.total_training_steps = total_training_steps
+
+        # Total training steps: 11550
         print(f"Total training steps: {self.total_training_steps}")
 
         try:
+            # TODO
             OmegaConf.set_struct(self.config, True)
             with open_dict(self.config):
                 if OmegaConf.select(self.config, "actor_rollout_ref.actor.optim"):
@@ -640,6 +647,7 @@ class RayPPOTrainer:
         1. Ray resource pools from configuration
         2. Worker groups for each role (actor, critic, etc.)
         """
+        # step 1: create resource pool
         self.resource_pool_manager.create_resource_pool()
 
         self.resource_pool_to_cls = {pool: {} for pool in self.resource_pool_manager.resource_pool_dict.values()}
@@ -702,6 +710,7 @@ class RayPPOTrainer:
                 )
         wg_kwargs["device_name"] = self.device_name
 
+        # FIXME: CREATE WORKERS HERE
         for resource_pool, class_dict in self.resource_pool_to_cls.items():
             worker_dict_cls = create_colocated_worker_cls(class_dict=class_dict)
             wg_dict = self.ray_worker_group_cls(
@@ -730,6 +739,8 @@ class RayPPOTrainer:
 
         # create async rollout manager and request scheduler
         self.async_rollout_mode = False
+
+        # FIXME rollout.mode = "sync"
         if self.config.actor_rollout_ref.rollout.mode == "async":
             from verl.experimental.agent_loop import AgentLoopManager
 
@@ -914,7 +925,7 @@ class RayPPOTrainer:
         self.global_steps = 0
 
         # load checkpoint before doing anything
-        self._load_checkpoint()
+        self._load_checkpoint() # training from scratch
 
         # perform validation before training
         # currently, we only support validation using the reward_function.
@@ -967,7 +978,7 @@ class RayPPOTrainer:
 
                 gen_batch = self._get_gen_batch(batch)
 
-                # pass global_steps to trace
+                # pass global_steps to trace: COPY rollout.n DATA
                 gen_batch.meta_info["global_steps"] = self.global_steps
                 gen_batch = gen_batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
 
@@ -976,13 +987,18 @@ class RayPPOTrainer:
                 with marked_timer("step", timing_raw):
                     # generate a batch
                     with marked_timer("gen", timing_raw, color="red"):
+
+                        # TODO: generate the sentences
                         if not self.async_rollout_mode:
+                            # SYNC GENERATION
                             gen_batch_output = self.actor_rollout_wg.generate_sequences(gen_batch)
                         else:
                             gen_batch_output = self.async_rollout_manager.generate_sequences(gen_batch)
+
                         timing_raw.update(gen_batch_output.meta_info["timing"])
                         gen_batch_output.meta_info.pop("timing", None)
 
+                    # this is GRPO
                     if self.config.algorithm.adv_estimator == AdvantageEstimator.REMAX:
                         if self.reward_fn is None:
                             raise ValueError("A reward_fn is required for REMAX advantage estimation.")

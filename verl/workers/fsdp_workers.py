@@ -157,11 +157,15 @@ class ActorRolloutRefWorker(Worker, DistProfilerExtension):
         self._lora_rank = self.config.model.get("lora_rank", 0)
         self._is_lora = self._lora_rank > 0
 
+        # FIXME: actor_rollout
         self.role = role
         assert self.role in ["actor", "rollout", "ref", "actor_rollout", "actor_rollout_ref"]
 
+        # FIXME: yes
         self._is_actor = self.role in ["actor", "actor_rollout", "actor_rollout_ref"]
+        # FIXME: yes
         self._is_rollout = self.role in ["rollout", "actor_rollout", "actor_rollout_ref"]
+        # FIXME: no
         self._is_ref = self.role in ["ref", "actor_rollout_ref"]
 
         # TODO(haibin.lin):
@@ -183,6 +187,7 @@ class ActorRolloutRefWorker(Worker, DistProfilerExtension):
                 f"Invalid role {self.role}, should be one of "
                 "['actor', 'rollout', 'ref', 'actor_rollout', 'actor_rollout_ref']"
             )
+
         # omega_profiler_config is DictConfig
         # profiler_config is a ProfilerConfig dataclass
         profiler_config = omega_conf_to_dataclass(omega_profiler_config, dataclass_type=ProfilerConfig)

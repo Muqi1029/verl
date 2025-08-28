@@ -758,6 +758,8 @@ def create_colocated_worker_cls(class_dict: dict[str, RayClassWithInitArgs]):
         [cls.cls.__ray_actor_class__.__mro__ for cls in class_dict.values()]
     )
     assert issubclass(worker_cls, Worker), f"worker_cls {worker_cls} should be a subclass of Worker"
+
+    # colocated worker base class <class 'verl.single_controller.base.worker.Worker'>
     print(f"colocated worker base class {worker_cls}")
 
     for key, cls in class_dict.items():

@@ -587,6 +587,7 @@ class SGLangRollout(BaseRollout):
             response_mask: | 1, 1, 1, ..., 1, 1 | 0, 0, .., 0, 0 | 1, 1, 1, ..., 1, 1 | 0, 0, ..., 0|
         """
         if self.config.multi_turn.enable:
+            # Enable 
             return self._req_level_generate_sequences(prompts, **kwargs)
         return self._batch_level_generate_sequences(prompts, **kwargs)
 
@@ -1084,6 +1085,8 @@ class SGLangRollout(BaseRollout):
         tgt_device = prompts.batch["input_ids"].device
 
         if self._tp_rank == 0:
+
+            # handle prompts, and convert them to req_list
             req_list = self._preprocess_prompt_to_async_rollout_requests(
                 prompts,
             )
@@ -1150,6 +1153,7 @@ class SGLangRollout(BaseRollout):
         else:
             sorted_output_req_list = None
 
+        # sync here
         dist.barrier()
         [sorted_output_req_list] = broadcast_pyobj(
             data=[sorted_output_req_list],
@@ -1158,6 +1162,7 @@ class SGLangRollout(BaseRollout):
             src=self._device_mesh_cpu["tp"].mesh[0].item(),
             force_cpu_device=False,
         )
+
         # Construct the batch data
         prompt_ids, response_ids = [], []
         prompt_attention_mask, response_attention_mask = [], []

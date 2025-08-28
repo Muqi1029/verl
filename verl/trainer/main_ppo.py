@@ -63,6 +63,8 @@ def run_ppo(config) -> None:
         runtime_env = OmegaConf.merge(default_runtime_env, runtime_env_kwargs)
         ray_init_kwargs = OmegaConf.create({**ray_init_kwargs, "runtime_env": runtime_env})
         print(f"ray init kwargs: {ray_init_kwargs}")
+
+        # INIT RAY
         ray.init(**OmegaConf.to_container(ray_init_kwargs))
 
     # Create a remote instance of the TaskRunner class, and
@@ -82,6 +84,8 @@ def run_ppo(config) -> None:
         runner = TaskRunner.options(runtime_env={"nsight": nsight_options}).remote()
     else:
         runner = TaskRunner.remote()
+
+    # wait for it to complete
     ray.get(runner.run.remote(config))
 
     # [Optional] get the path of the timeline trace file from the configuration, default to None
@@ -112,12 +116,13 @@ class TaskRunner:
         from verl.single_controller.ray import RayWorkerGroup
 
         if config.actor_rollout_ref.actor.strategy in {"fsdp", "fsdp2"}:
+            # GOING HERE
             from verl.workers.fsdp_workers import ActorRolloutRefWorker, AsyncActorRolloutRefWorker
 
             actor_rollout_cls = (
                 AsyncActorRolloutRefWorker
                 if config.actor_rollout_ref.rollout.mode == "async"
-                else ActorRolloutRefWorker
+                else ActorRolloutRefWorker # USE SYNC WORKER
             )
             ray_worker_group_cls = RayWorkerGroup
 
@@ -145,7 +150,7 @@ class TaskRunner:
         if config.critic.strategy in {"fsdp", "fsdp2"}:
             use_legacy_worker_impl = config.trainer.get("use_legacy_worker_impl", "auto")
             if use_legacy_worker_impl in ["auto", "enable"]:
-                from verl.workers.fsdp_workers import CriticWorker
+                from verl.workers.fsdp_workers import CriticWorker # FIXME: GOING HERE
             elif use_legacy_worker_impl == "disable":
                 from verl.workers.roles import CriticWorker
 
@@ -221,7 +226,10 @@ class TaskRunner:
         pprint(OmegaConf.to_container(config, resolve=True))
         OmegaConf.resolve(config)
 
+        # Add actor_rollout worker
         actor_rollout_cls, ray_worker_group_cls = self.add_actor_rollout_worker(config)
+
+        # FIXME: Add critic worker
         self.add_critic_worker(config)
 
         # We should adopt a multi-source reward function here:
@@ -278,11 +286,17 @@ class TaskRunner:
             config=config,
             tokenizer=tokenizer,
             processor=processor,
-            role_worker_mapping=self.role_worker_mapping,
-            resource_pool_manager=resource_pool_manager,
+
+            role_worker_mapping=self.role_worker_mapping, # store the working cls mapping: Role => Remote CLASS(Actor)
+
+            resource_pool_manager=resource_pool_manager, # resource mapping
+
             ray_worker_group_cls=ray_worker_group_cls,
+
             reward_fn=reward_fn,
             val_reward_fn=val_reward_fn,
+
+            # Dataset and Sampler
             train_dataset=train_dataset,
             val_dataset=val_dataset,
             collate_fn=collate_fn,

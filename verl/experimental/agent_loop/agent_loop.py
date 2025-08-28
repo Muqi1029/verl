@@ -659,6 +659,7 @@ class AgentLoopManager:
         self.async_llm_servers = [None] * self.rollout_dp_size
         self.server_addresses = [None] * self.rollout_dp_size
 
+        # Initialize LLM Servers (e.g. SGLang) here
         if self.config.actor_rollout_ref.rollout.agent.custom_async_server:
             server_class = async_server_class(
                 rollout_backend=self.config.actor_rollout_ref.rollout.name,
@@ -724,14 +725,20 @@ class AgentLoopManager:
         """
         if self.config.actor_rollout_ref.rollout.free_cache_engine:
             self.wake_up()
+
+        # split input batches
         chunkes = prompts.chunk(len(self.agent_loop_workers))
+
+        # get outputs from workers
         outputs = ray.get(
             [
                 worker.generate_sequences.remote(chunk)
                 for worker, chunk in zip(self.agent_loop_workers, chunkes, strict=True)
             ]
         )
+
         output = DataProto.concat(outputs)
+
         if self.config.actor_rollout_ref.rollout.free_cache_engine:
             self.sleep()
 
