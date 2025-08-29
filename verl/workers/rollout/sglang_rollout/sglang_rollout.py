@@ -331,6 +331,7 @@ class SGLangRollout(BaseRollout):
     def _init_distributed_env(self, device_mesh_cpu, **kwargs):
         self._device_mesh_cpu = device_mesh_cpu
         os.environ.setdefault("SGL_DISABLE_TP_MEMORY_INBALANCE_CHECK", "true")
+
         self.tensor_parallel_size = self.config.get("tensor_model_parallel_size", 1)
         assert self.tensor_parallel_size <= dist.get_world_size(), (
             "tensor parallel size should be less than or equal to the world size"
@@ -359,9 +360,10 @@ class SGLangRollout(BaseRollout):
 
             self._device_mesh_cpu = init_device_mesh("cpu", **device_mesh_kwargs)
 
-        self._rank = self._device_mesh_cpu.get_rank()
-        self._tp_rank = self._device_mesh_cpu["tp"].get_local_rank()
-        self._tp_size = self._device_mesh_cpu["tp"].size()
+        self._rank = self._device_mesh_cpu.get_rank() # FIXME global rank: from 0 to 7
+        self._tp_rank = self._device_mesh_cpu["tp"].get_local_rank() # FIXME local_rank [0, 1]
+        self._tp_size = self._device_mesh_cpu["tp"].size() # FIXME size of TP group  2
+
         if self._rank == 0:
             logger.info(f"_init_distributed_env: :tp_world: {self._tp_size}, global_world: {world_size}")
         # get tp_rank of this process in this tp group
@@ -435,9 +437,13 @@ class SGLangRollout(BaseRollout):
             dist_init_addr = None
 
         load_format = "dummy" if self.config.load_format.startswith("dummy") else self.config.load_format
+
         tp_size_per_node = self._tp_size // nnodes
+
         node_rank = self._tp_rank // tp_size_per_node
+
         first_rank_in_node = self._tp_rank % tp_size_per_node == 0
+
         engine_kwargs = self.config.get("engine_kwargs", {}).get("sglang", {}) or {}
         engine_kwargs = {key: val for key, val in engine_kwargs.items() if val is not None}
 
@@ -448,6 +454,8 @@ class SGLangRollout(BaseRollout):
         if first_rank_in_node:
             rank = dist.get_rank()
             os.environ["SGLANG_BLOCK_NONZERO_RANK_CHILDREN"] = "0"
+
+            # FIXME: INITIATE SGLANG ENGINE
             self._engine = AsyncEngine(
                 model_path=actor_module,
                 dtype=self.config.dtype,
@@ -455,7 +463,9 @@ class SGLangRollout(BaseRollout):
                 enable_memory_saver=True,
                 base_gpu_id=0,
                 gpu_id_step=1,
-                tp_size=self._tp_size,
+
+                tp_size=self._tp_size, # FIXME: _tp_size
+
                 node_rank=node_rank,
                 load_format=load_format,
                 dist_init_addr=dist_init_addr,

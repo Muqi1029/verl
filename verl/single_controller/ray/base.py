@@ -297,6 +297,7 @@ class RayWorkerGroup(WorkerGroup):
         self._ray_wait_register_center_timeout = ray_wait_register_center_timeout
         # Whether the WorkerGroup is a Colocate WorkerGroup created by FusedWorker.
         self.fused_worker_used = ray_cls_with_init.fused_worker_used
+
         # if a WorkerGroup is spawned from Colocate WorkerGroup, this indicates which sub-class is binded to
         # this WorkerGroup.
         self.sub_cls_name = ""
@@ -762,9 +763,9 @@ def create_colocated_worker_cls(class_dict: dict[str, RayClassWithInitArgs]):
     # colocated worker base class <class 'verl.single_controller.base.worker.Worker'>
     print(f"colocated worker base class {worker_cls}")
 
-    for key, cls in class_dict.items():
-        cls_dict[key] = cls.cls
-        init_args_dict[key] = {"args": cls.args, "kwargs": cls.kwargs}
+    for key, cls in class_dict.items(): # FIXME: cls: RayClassWithInitArgs
+        cls_dict[key] = cls.cls # FIXME: cls.cls (remote ray class)
+        init_args_dict[key] = {"args": cls.args, "kwargs": cls.kwargs} # FIXME: store args, kwargs from the RayClassWithInitArgs
 
     assert cls_dict.keys() == init_args_dict.keys()
 
@@ -775,13 +776,15 @@ def create_colocated_worker_cls(class_dict: dict[str, RayClassWithInitArgs]):
             self.worker_dict = {}
             for key, user_defined_cls in cls_dict.items():
                 user_defined_cls = _unwrap_ray_remote(user_defined_cls)
+
                 # directly instantiate the class without remote
                 # in worker class, e.g. <verl.single_controller.base.worker.Worker>
+
                 # when DISABLE_WORKER_INIT == 1 it will return immediately
                 with temp_env_var("DISABLE_WORKER_INIT", "1"):
                     self.worker_dict[key] = user_defined_cls(
                         *init_args_dict[key].get("args", ()), **init_args_dict[key].get("kwargs", {})
-                    )
+                    ) # FIXME: instance
 
     # now monkey-patch the methods from inner class to WorkerDict
     for key, user_defined_cls in cls_dict.items():

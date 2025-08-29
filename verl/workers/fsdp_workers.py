@@ -344,6 +344,7 @@ class ActorRolloutRefWorker(Worker, DistProfilerExtension):
                 else:
                     actor_module_class = AutoModel
 
+            # load from transformers
             actor_module = actor_module_class.from_pretrained(
                 pretrained_model_name_or_path=local_path,
                 torch_dtype=torch_dtype,
@@ -523,14 +524,22 @@ class ActorRolloutRefWorker(Worker, DistProfilerExtension):
         from torch.distributed.device_mesh import init_device_mesh
 
         # TODO(sgm): support FSDP hybrid shard for larger model
-        infer_tp = self.config.rollout.tensor_model_parallel_size
-        dp = self.world_size // infer_tp
+
+        # FIXME: 2
+        infer_tp = self.config.rollout.tensor_model_parallel_size 
+
+        # FIXME: dp = 4
+        dp = self.world_size // infer_tp 
         assert self.world_size % infer_tp == 0, (
             f"rollout world_size: {self.world_size} is not divisible by infer_tp: {infer_tp}"
         )
+
+        # TODO(Muqi1029): device_mesh ???
         rollout_device_mesh = init_device_mesh(
             device_name, mesh_shape=(dp, infer_tp), mesh_dim_names=["dp", "infer_tp"]
         )
+
+        # FIXME: choose which inference engine
         rollout_name = self.config.rollout.name
 
         if rollout_name == "hf":
@@ -616,7 +625,10 @@ class ActorRolloutRefWorker(Worker, DistProfilerExtension):
                 optim_config = None
                 fsdp_config = FSDPEngineConfig()
 
+            # get model path
             local_path = copy_to_local(self.config.model.path, use_shm=use_shm)
+
+            # build model and optimizer
             (
                 self.actor_module_fsdp,
                 self.actor_optimizer,
@@ -648,6 +660,7 @@ class ActorRolloutRefWorker(Worker, DistProfilerExtension):
                 offload_fsdp_optimizer(optimizer=self.actor_optimizer)
                 log_gpu_memory_usage("After offload actor optimizer during init", logger=logger)
 
+        # FIXME: A HIGHER ENCAPSULATION
         if self._is_actor:
             actor_cfg = omega_conf_to_dataclass(self.config.actor)
             self.actor = DataParallelPPOActor(
@@ -1019,6 +1032,7 @@ class CriticWorker(Worker, DistProfilerExtension):
         # normalize config
         self.config.ppo_mini_batch_size *= self.config.rollout_n
         self.config.ppo_mini_batch_size //= torch.distributed.get_world_size() // self.ulysses_sequence_parallel_size
+
         if self.config.ppo_micro_batch_size is not None:
             self.config.ppo_micro_batch_size //= (
                 torch.distributed.get_world_size() // self.ulysses_sequence_parallel_size
@@ -1038,6 +1052,7 @@ class CriticWorker(Worker, DistProfilerExtension):
                 f"normalized ppo_mini_batch_size {self.config.ppo_mini_batch_size} should be larger than "
                 f"ppo_micro_batch_size_per_gpu {self.config.ppo_micro_batch_size_per_gpu}"
             )
+
         self._is_lora = self.config.model.get("lora_rank", 0) > 0
 
     def _build_critic_model_optimizer(self, config):
@@ -1049,6 +1064,11 @@ class CriticWorker(Worker, DistProfilerExtension):
         from verl.utils.torch_dtypes import PrecisionType
 
         use_shm = config.model.get("use_shm", False)
+        
+        # FIXME 
+        # 1. model.path: ~/models/deepseek-llm-7b-chat
+        # 2. model.tokenizer: /code/azw/models/Qwen3-14B
+
         local_path = copy_to_local(config.model.path, use_shm=use_shm)
         # note that the tokenizer between actor and critic may be different. So override tokenizer info with actor info
         # using random initialized model from any architecture. May not be the same as Actor.
@@ -1062,6 +1082,7 @@ class CriticWorker(Worker, DistProfilerExtension):
                 self.processor.chat_template = self.config.model.custom_chat_template
             else:
                 self.tokenizer.chat_template = self.config.model.custom_chat_template
+
         override_config = OmegaConf.to_container(OmegaConf.create(self.config.model.get("override_config", {})))
         override_config_kwargs = {
             "bos_token_id": self.tokenizer.bos_token_id,
@@ -1103,6 +1124,7 @@ class CriticWorker(Worker, DistProfilerExtension):
             critic_model_config.hidden_dropout = "0"
             critic_model_config.summary_dropout_prob = 0.0
 
+            # FIXME: load valuehead model using transformers
             critic_module = load_valuehead_model(
                 local_path,
                 torch_dtype,
@@ -1267,6 +1289,7 @@ class CriticWorker(Worker, DistProfilerExtension):
             offload_fsdp_optimizer(optimizer=self.critic_optimizer)
             log_gpu_memory_usage("After offload critic optimizer during init", logger=logger)
 
+        # FIXME: CREATE CRITIC MODEL HERE
         self.critic = DataParallelPPOCritic(
             config=self.config, critic_module=self.critic_module, critic_optimizer=self.critic_optimizer
         )
@@ -1289,6 +1312,7 @@ class CriticWorker(Worker, DistProfilerExtension):
         data.meta_info["micro_batch_size"] = micro_batch_size
         data.meta_info["max_token_len"] = self.config.forward_max_token_len_per_gpu
         data.meta_info["use_dynamic_bsz"] = self.config.use_dynamic_bsz
+
         # perform forward computation
         with self.ulysses_sharding_manager:
             data = data.to("cpu")  # data will to device with each micro batch on critic.compute_values

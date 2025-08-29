@@ -97,6 +97,8 @@ class RolloutWorker(Worker):
                 trust_remote_code=self.model_config.trust_remote_code,
                 **lora_kwargs,
             )
+
+        # FIXME: USE SGLANG
         elif self.config.name == "sglang":
             from verl.workers.rollout.sglang_rollout.sglang_rollout import SGLangRollout
 

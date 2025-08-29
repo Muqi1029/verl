@@ -347,7 +347,7 @@ class RayPPOTrainer:
             experiment_name=self.config.trainer.experiment_name,
         )
 
-        # if ref_in_actor is True, the reference policy will be actor without lora applied
+        # if ref_in_actor i True, the reference policy will be actor without lora applied
         self.ref_in_actor = config.actor_rollout_ref.model.get("lora_rank", 0) > 0
 
         # define in-reward KL control
@@ -725,10 +725,12 @@ class RayPPOTrainer:
             self.critic_wg = all_wg["critic"]
             self.critic_wg.init_model()
 
+        # FIXME: not use
         if self.use_reference_policy and not self.ref_in_actor:
             self.ref_policy_wg = all_wg["ref"]
             self.ref_policy_wg.init_model()
 
+        # FIXME: not use
         if self.use_rm:
             self.rm_wg = all_wg["rm"]
             self.rm_wg.init_model()
@@ -1081,17 +1083,20 @@ class RayPPOTrainer:
                             values = self.critic_wg.compute_values(batch)
                             batch = batch.union(values)
 
+                    # FIXME: compute advantage
                     with marked_timer("adv", timing_raw, color="brown"):
                         # we combine with rule-based rm
                         reward_extra_infos_dict: dict[str, list]
                         if self.config.reward_model.launch_reward_fn_async:
                             reward_tensor, reward_extra_infos_dict = ray.get(future_reward)
+
                         batch.batch["token_level_scores"] = reward_tensor
 
                         if reward_extra_infos_dict:
                             batch.non_tensor_batch.update({k: np.array(v) for k, v in reward_extra_infos_dict.items()})
 
                         # compute rewards. apply_kl_penalty if available
+
                         if self.config.algorithm.use_kl_in_reward:
                             batch, kl_metrics = apply_kl_penalty(
                                 batch, kl_ctrl=self.kl_ctrl_in_reward, kl_penalty=self.config.algorithm.kl_penalty
