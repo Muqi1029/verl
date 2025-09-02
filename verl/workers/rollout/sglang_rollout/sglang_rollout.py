@@ -312,6 +312,7 @@ class SGLangRollout(BaseRollout):
         self._init_distributed_env(device_mesh_cpu=device_mesh, **kwargs)
 
         self._verify_config(model_hf_config=model_hf_config)
+
         # initialize the inference engine
         self._init_inference_engine(trust_remote_code, actor_module, port)
 
@@ -377,12 +378,14 @@ class SGLangRollout(BaseRollout):
         os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(sorted(list(self.visible_devices_set)))
 
     def _verify_config(self, model_hf_config):
+        # FIXME: check max_model_len
         if not self.config.get("max_model_len", None):
             self.config.max_model_len = self.config.prompt_length + self.config.response_length
         assert (
             self.config.max_model_len >= self.config.prompt_length + self.config.response_length
         ), f"""max_model_len should be greater than total sequence length (prompt_length + response_length): 
             {self.config.max_model_len} >= {self.config.prompt_length} + {self.config.response_length}"""
+
         max_position_embeddings = None
         if hasattr(model_hf_config, "max_position_embeddings"):
             max_position_embeddings = model_hf_config.max_position_embeddings
@@ -612,7 +615,7 @@ class SGLangRollout(BaseRollout):
             response_mask: | 1, 1, 1, ..., 1, 1 | 0, 0, .., 0, 0 | 1, 1, 1, ..., 1, 1 | 0, 0, ..., 0|
         """
         if self.config.multi_turn.enable:
-            # Enable 
+            # FIXME: Enable 
             return self._req_level_generate_sequences(prompts, **kwargs)
         return self._batch_level_generate_sequences(prompts, **kwargs)
 
@@ -1040,6 +1043,7 @@ class SGLangRollout(BaseRollout):
 
         _req.finalize(self.processing_class, all_rewards, finish_reason_type)
 
+        # FIXME: extract log probs
         if self.config.calculate_log_probs:
             debug_sampling_params = {**self.sampling_params}
             debug_sampling_params["max_new_tokens"] = 0
@@ -1186,7 +1190,7 @@ class SGLangRollout(BaseRollout):
         else:
             sorted_output_req_list = None
 
-        # FIXME: sync here
+        # FIXME: SYNC HERE
         dist.barrier()
         [sorted_output_req_list] = broadcast_pyobj(
             data=[sorted_output_req_list],

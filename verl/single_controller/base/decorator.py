@@ -35,6 +35,7 @@ class Dispatch(DynamicEnum):
     _next_value = 0
 
 
+# FIXME: ALL DISPATCH MODE
 def init_predefined_dispatch_mode():
     Dispatch.register("RANK_ZERO")
     Dispatch.register("ONE_TO_ALL")

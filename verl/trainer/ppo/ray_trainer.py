@@ -969,7 +969,7 @@ class RayPPOTrainer:
         for epoch in range(self.config.trainer.total_epochs):
             for batch_dict in self.train_dataloader:
                 metrics = {}
-                timing_raw = {}
+                timing_raw = {} # FIXME: A dict
 
                 with marked_timer("start_profile", timing_raw):
                     self._start_profiling(
@@ -1007,7 +1007,7 @@ class RayPPOTrainer:
                         timing_raw.update(gen_batch_output.meta_info["timing"])
                         gen_batch_output.meta_info.pop("timing", None)
 
-                    # this is GRPO
+                    # FIXME: GRPO
                     if self.config.algorithm.adv_estimator == AdvantageEstimator.REMAX:
                         if self.reward_fn is None:
                             raise ValueError("A reward_fn is required for REMAX advantage estimation.")
@@ -1132,7 +1132,9 @@ class RayPPOTrainer:
                     if self.use_critic:
                         with marked_timer("update_critic", timing_raw, color="pink"):
                             critic_output = self.critic_wg.update_critic(batch)
+                        # REDUCE OPERATION
                         critic_output_metrics = reduce_metrics(critic_output.meta_info["metrics"])
+                        # UPDATE METRICS
                         metrics.update(critic_output_metrics)
 
                     # implement critic warmup

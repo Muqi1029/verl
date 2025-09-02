@@ -1345,6 +1345,8 @@ class CriticWorker(Worker, DistProfilerExtension):
 
             lr = self.critic_lr_scheduler.get_last_lr()[0]
             metrics["critic/lr"] = lr
+
+            # STEP
             self.critic_lr_scheduler.step()
 
             output = DataProto(batch=None, meta_info={"metrics": metrics})
