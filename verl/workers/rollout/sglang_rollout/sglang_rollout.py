@@ -811,6 +811,7 @@ class SGLangRollout(BaseRollout):
 
         return DataProto(batch=batch, non_tensor_batch=non_tensor_batch)
 
+    # FIXME: the basic rollout unit
     async def _async_rollout_a_request(
         self,
         req: AsyncRolloutRequest,
@@ -818,6 +819,7 @@ class SGLangRollout(BaseRollout):
         is_validate: bool = False,
         **kwargs,
     ) -> AsyncRolloutRequest:
+
         assert self._tp_rank == 0, "only the master process can call this function"
         _req = deepcopy(req)
         finish_reason_type = None
@@ -859,10 +861,13 @@ class SGLangRollout(BaseRollout):
         # Update with any additional kwargs
         request_sampling_params.update(kwargs)
 
+        # FIXME: MAX ASSISTANT TURNS
         while current_turns < self.config.multi_turn.max_assistant_turns:
+
             if _req.state == AsyncRolloutRequestStateEnum.PENDING:
                 await self._handle_pending_state(_req)
                 _req.state = AsyncRolloutRequestStateEnum.RUNNING
+
             elif _req.state == AsyncRolloutRequestStateEnum.TOOL_CALLING:
                 if _req.messages[-1].tool_calls is not None:
                     parsed_tool_calls = _req.messages[-1].tool_calls
@@ -1017,7 +1022,9 @@ class SGLangRollout(BaseRollout):
         tool_reward_scores = await asyncio.gather(*tool_reward_tasks)
         tool_reward_scores = dict(tool_reward_scores)
         all_rewards = {**tool_reward_scores, **{"user_turn_rewards": user_turn_rewards}}
+
         _req.finalize(self.processing_class, all_rewards, finish_reason_type)
+
         if self.config.calculate_log_probs:
             debug_sampling_params = {**self.sampling_params}
             debug_sampling_params["max_new_tokens"] = 0
@@ -1032,6 +1039,7 @@ class SGLangRollout(BaseRollout):
             _req.output_token_ids, _req.rollout_log_probs = _extract_logprob_from_output(output)
         return _req
 
+    # FIXME: REQUEST ROLLOUT ENGINE
     async def _handle_engine_call(
         self, _req: AsyncRolloutRequest, sampling_params: dict, image_data: Optional[list[Any]] = None
     ) -> dict:
@@ -1163,7 +1171,7 @@ class SGLangRollout(BaseRollout):
         else:
             sorted_output_req_list = None
 
-        # sync here
+        # FIXME: sync here
         dist.barrier()
         [sorted_output_req_list] = broadcast_pyobj(
             data=[sorted_output_req_list],
@@ -1182,6 +1190,7 @@ class SGLangRollout(BaseRollout):
         reward_scores = []
         multi_modal_inputs = []
         request_ids = []
+
         if self.config.calculate_log_probs:
             output_logprobs = []
             rollout_output_token_ids = []
@@ -1250,6 +1259,7 @@ class SGLangRollout(BaseRollout):
             prompt_attention_mask = pad_sequence_to_length(
                 prompt_attention_mask, self.config.prompt_length, 0, left_pad=True
             )
+
         response_attention_mask = pad_sequence(response_attention_mask, batch_first=True, padding_value=0)
         if response_attention_mask.shape[-1] < self.config.response_length:
             response_attention_mask = pad_sequence_to_length(response_attention_mask, self.config.response_length, 0)
