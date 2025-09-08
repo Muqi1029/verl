@@ -64,6 +64,8 @@ class AsyncServerBase(ABC):
             os._exit(-1)
 
         app = fastapi.FastAPI(lifespan=lifespan)
+
+        # FIXME: only add /v1/chat/completions here
         app.router.add_api_route("/v1/chat/completions", self.chat_completion, methods=["POST"])
 
         self.port = _get_free_port()

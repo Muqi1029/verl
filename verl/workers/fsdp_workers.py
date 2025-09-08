@@ -206,6 +206,7 @@ class ActorRolloutRefWorker(Worker, DistProfilerExtension):
         if self._is_actor:
             self._is_offload_param = self.config.actor.fsdp_config.get("param_offload", False)
             self._is_offload_optimizer = self.config.actor.fsdp_config.get("optimizer_offload", False)
+
         elif self._is_ref:
             # TODO: it seems that manual offload is slowly than FSDP offload
             self._is_offload_param = self.config.ref.fsdp_config.get("param_offload", False)
@@ -344,7 +345,7 @@ class ActorRolloutRefWorker(Worker, DistProfilerExtension):
                 else:
                     actor_module_class = AutoModel
 
-            # load from transformers
+            # FIXME: load from transformers
             actor_module = actor_module_class.from_pretrained(
                 pretrained_model_name_or_path=local_path,
                 torch_dtype=torch_dtype,
@@ -525,16 +526,14 @@ class ActorRolloutRefWorker(Worker, DistProfilerExtension):
 
         # TODO(sgm): support FSDP hybrid shard for larger model
 
-        # FIXME: 2
         infer_tp = self.config.rollout.tensor_model_parallel_size 
 
-        # FIXME: dp = 4
         dp = self.world_size // infer_tp 
         assert self.world_size % infer_tp == 0, (
             f"rollout world_size: {self.world_size} is not divisible by infer_tp: {infer_tp}"
         )
 
-        # TODO(Muqi1029): device_mesh ???
+        # TODO(Muqi1029): device_mesh
         rollout_device_mesh = init_device_mesh(
             device_name, mesh_shape=(dp, infer_tp), mesh_dim_names=["dp", "infer_tp"]
         )
@@ -555,6 +554,7 @@ class ActorRolloutRefWorker(Worker, DistProfilerExtension):
 
         # build rollout worker inside hybrid engine
         log_gpu_memory_usage(f"Before building {rollout_name} rollout", logger=logger)
+        # FIXME: create rollout worker for which launching the rollout engine
         rollout_worker = RolloutWorker(config=rollout_config, model_config=model_config)
         log_gpu_memory_usage(f"After building {rollout_name} rollout", logger=logger)
 

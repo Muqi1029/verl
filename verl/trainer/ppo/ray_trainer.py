@@ -342,6 +342,7 @@ class RayPPOTrainer:
 
         self.ray_worker_group_cls = ray_worker_group_cls
         self.device_name = device_name if device_name else self.config.trainer.device
+
         self.validation_generations_logger = ValidationGenerationsLogger(
             project_name=self.config.trainer.project_name,
             experiment_name=self.config.trainer.experiment_name,
@@ -664,7 +665,7 @@ class RayPPOTrainer:
             resource_pool = self.resource_pool_manager.get_resource_pool(Role.ActorRollout)
             actor_rollout_cls = RayClassWithInitArgs(
                 cls=self.role_worker_mapping[Role.ActorRollout],
-                config=self.config.actor_rollout_ref,
+                config=self.config.actor_rollout_ref, # init args
                 role="actor_rollout",
             )
             self.resource_pool_to_cls[resource_pool]["actor_rollout"] = actor_rollout_cls
@@ -999,9 +1000,10 @@ class RayPPOTrainer:
 
                         # TODO: generate the sentences
                         if not self.async_rollout_mode:
-                            # SYNC GENERATION
+                            # FIXME: sync generation
                             gen_batch_output = self.actor_rollout_wg.generate_sequences(gen_batch)
                         else:
+                            # FIXME: async mode
                             gen_batch_output = self.async_rollout_manager.generate_sequences(gen_batch)
 
                         timing_raw.update(gen_batch_output.meta_info["timing"])
@@ -1094,7 +1096,9 @@ class RayPPOTrainer:
                     with marked_timer("adv", timing_raw, color="brown"):
                         # we combine with rule-based rm
                         reward_extra_infos_dict: dict[str, list]
+
                         if self.config.reward_model.launch_reward_fn_async:
+                            # FIXME sync future reward
                             reward_tensor, reward_extra_infos_dict = ray.get(future_reward)
 
                         batch.batch["token_level_scores"] = reward_tensor

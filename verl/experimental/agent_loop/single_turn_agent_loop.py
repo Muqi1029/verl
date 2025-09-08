@@ -37,7 +37,8 @@ class SingleTurnAgentLoop(AgentLoopBase):
         messages = list(kwargs["raw_prompt"])
 
         metrics = {}
-        request_id = uuid4().hex
+        request_id = uuid4().hex # create a request_id
+
         prompt_ids = await self.loop.run_in_executor(
             None,
             lambda: self.tokenizer.apply_chat_template(

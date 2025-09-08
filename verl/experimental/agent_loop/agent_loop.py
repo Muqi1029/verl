@@ -325,6 +325,7 @@ class AgentLoopWorker:
             agent_loop_configs = OmegaConf.load(agent_loop_config_path)
             for agent_loop_config in agent_loop_configs:
                 _agent_loop_registry[agent_loop_config.name] = agent_loop_config
+
         if self.config.actor_rollout_ref.model.get("custom_chat_template", None) is not None:
             if self.processor is not None:
                 self.processor.chat_template = self.config.actor_rollout_ref.model.custom_chat_template
@@ -396,6 +397,7 @@ class AgentLoopWorker:
         for i in range(len(batch)):
             kwargs = {k: v[i] for k, v in batch.non_tensor_batch.items()}
             tasks.append(asyncio.create_task(self._run_agent_loop(sampling_params, trajectory_info[i], **kwargs)))
+
         outputs = await asyncio.gather(*tasks)
 
         output = self._postprocess(outputs)
@@ -428,6 +430,7 @@ class AgentLoopWorker:
                 tokenizer=self.tokenizer,
                 processor=self.processor,
             )
+            # FIXME: agent loop here
             output: AgentLoopOutput = await agent_loop.run(sampling_params, **kwargs)
 
             # Some AgentLoop may have already computed the reward score, e.g SWE-agent.
@@ -690,7 +693,7 @@ class AgentLoopManager:
                     ),
                     name=f"async_llm_server_{rollout_dp_rank}",
                 ).remote(self.config, self.rollout_dp_size, rollout_dp_rank, self.worker_group.name_prefix)
-                for rollout_dp_rank in unready_dp_ranks
+                for rollout_dp_rank in unready_dp_ranks # traverse dp rank 
             }
 
             for rollout_dp_rank, server in servers.items():
@@ -710,7 +713,9 @@ class AgentLoopManager:
         self.agent_loop_workers = []
         num_workers = self.config.actor_rollout_ref.rollout.agent.num_workers
 
+        # select part of nodes
         node_ids = [node["NodeID"] for node in ray.nodes() if node["Alive"] and node["Resources"].get("CPU", 0) > 0]
+
         for i in range(num_workers):
             # Round-robin scheduling over the all nodes
             node_id = node_ids[i % len(node_ids)]

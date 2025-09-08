@@ -300,6 +300,7 @@ class SGLangRollout(BaseRollout):
             self._sgl_tools,
             self._function_call_parser,
         ) = self._initialize_tools(config, processing_class)
+
         self.interaction_map: dict[str, BaseInteraction] = self._initialize_interactions(config)
         # If turn on `free_cache_engine`, SGLang engine's KV cache
         # will be freed after each `generate_sequences` call.
@@ -461,6 +462,7 @@ class SGLangRollout(BaseRollout):
             is_server_mode = False
         effective_first = first_rank_in_node or is_server_mode
 
+        # FIXME: FIRST RANK 
         if effective_first:
             rank = dist.get_rank()
             os.environ["SGLANG_BLOCK_NONZERO_RANK_CHILDREN"] = "0"
@@ -984,6 +986,7 @@ class SGLangRollout(BaseRollout):
                             self.processing_class,
                             content,
                         )
+
                         if (
                             _req.interaction_kwargs
                             and self.interaction_map
@@ -993,6 +996,7 @@ class SGLangRollout(BaseRollout):
                             _req.state = AsyncRolloutRequestStateEnum.INTERACTING
                         else:
                             break
+
             elif _req.state == AsyncRolloutRequestStateEnum.INTERACTING:
                 user_turns += 1
                 messages = [{"role": x.role, "content": x.content} for x in _req.messages]
@@ -1012,6 +1016,7 @@ class SGLangRollout(BaseRollout):
                     _req.request_id, messages, **_req.interaction_kwargs
                 )
                 user_turn_rewards.append(reward)
+
                 if should_terminate_sequence:
                     finish_reason_type = FinishReasonTypeEnum.STOP
                     _req.state = AsyncRolloutRequestStateEnum.COMPLETED

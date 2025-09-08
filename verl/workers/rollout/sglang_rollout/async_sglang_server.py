@@ -65,6 +65,7 @@ class AsyncSGLangServer(AsyncServerBase):
                 self.workers.append(worker)
 
                 if worker_tp_rank == 0:
+                    # FIXME: only the TP0 receive requests
                     self.master_worker = worker
 
     async def chat_completion(self, raw_request: Request):

@@ -288,7 +288,7 @@ class TaskRunner:
             tokenizer=tokenizer,
             processor=processor,
 
-            role_worker_mapping=self.role_worker_mapping, # store the working cls mapping: Role => Remote CLASS(Actor)
+            role_worker_mapping=self.role_worker_mapping, # store the working cls mapping: Role => Remote Class(Actor)
 
             resource_pool_manager=resource_pool_manager, # resource mapping
 
